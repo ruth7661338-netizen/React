@@ -1,0 +1,264 @@
+###############################################################################
+# בדיקת השרת - כל הבקשות
+#
+# איך משתמשים:
+# 1. להתקין ב-VS Code את התוסף "REST Client" (של Huachao Mao)
+# 2. להריץ את השרת: npm run dev
+# 3. מעל כל בקשה מופיע "Send Request" - לוחצים, והתשובה נפתחת בצד
+#
+# חשוב: להריץ קודם את בקשות הכניסה (1, 2) - שאר הבקשות לוקחות מהן את הטוקן.
+# הבקשות שומרות תשובות בשם (@name) ומשתמשות בהן בהמשך, למשל {{teacherLogin.response.body.token}}
+# לאיפוס הנתונים להתחלה: npm run seed
+###############################################################################
+
+@baseUrl = http://localhost:5000/api
+@teacherToken = {{teacherLogin.response.body.token}}
+@studentToken = {{studentLogin.response.body.token}}
+
+
+###############################################################################
+# בדיקה שהשרת למעלה
+###############################################################################
+
+### 0. השרת פועל?  → 200 { "ok": true }
+GET {{baseUrl}}/health
+
+
+###############################################################################
+# כניסה והרשמה
+###############################################################################
+
+### 1. כניסת מורה (שם + ת"ז + סיסמה)  → 200 { token, user }
+# @name teacherLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "name": "רחל לוי",
+  "idNumber": "100000009",
+  "password": "1234"
+}
+
+### 2. כניסת תלמידה (שם + ת"ז, בלי סיסמה)  → 200 { token, user }
+# @name studentLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "name": "מיכל אברהם",
+  "idNumber": "300000007"
+}
+
+### 3. מי מחובר? (עם טוקן של מורה)  → 200 { user }
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{teacherToken}}
+
+### 4. מי מחובר? (עם טוקן של תלמידה - כולל רמה וניקוד)  → 200 { user }
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{studentToken}}
+
+### 5. הרשמת מורה חדשה  → 201 { token, user }
+# בפעם השנייה יחזור 409 כי הת"ז כבר קיימת (npm run seed מאפס)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "idNumber": "200000008",
+  "name": "שרה כהן",
+  "age": 30,
+  "password": "sara99",
+  "systemCode": "teach2026"
+}
+
+
+###############################################################################
+# מוסדות לימוד (מורה)
+###############################################################################
+
+### 6. רשימת המוסדות של המורה  → 200 [ ... ]
+# @name institutions
+GET {{baseUrl}}/institutions
+Authorization: Bearer {{teacherToken}}
+
+### 7. הוספת מוסד  → 201
+# בפעם השנייה יחזור 409 "מוסד בשם זה כבר קיים"
+# @name newInstitution
+POST {{baseUrl}}/institutions
+Authorization: Bearer {{teacherToken}}
+Content-Type: application/json
+
+{
+  "name": "בית ספר חדש"
+}
+
+### 8. מחיקת המוסד שנוסף בבקשה 7  → 200
+DELETE {{baseUrl}}/institutions/{{newInstitution.response.body._id}}
+Authorization: Bearer {{teacherToken}}
+
+
+###############################################################################
+# תלמידים (מורה)
+###############################################################################
+
+### 9. כל התלמידים של המורה  → 200 [ ... ]
+GET {{baseUrl}}/students
+Authorization: Bearer {{teacherToken}}
+
+### 10. חיפוש לפי מוסד (המוסד הראשון מבקשה 6)  → 200
+GET {{baseUrl}}/students?institution={{institutions.response.body.$[0]._id}}
+Authorization: Bearer {{teacherToken}}
+
+### 11. חיפוש לפי שם (חלק מהשם מספיק)  → 200
+GET {{baseUrl}}/students?name=נועה
+Authorization: Bearer {{teacherToken}}
+
+### 12. חיפוש לפי רמה  → 200
+GET {{baseUrl}}/students?level=2
+Authorization: Bearer {{teacherToken}}
+
+### 13. מיון לפי ניקוד, מהגבוה לנמוך  → 200
+GET {{baseUrl}}/students?sort=-score
+Authorization: Bearer {{teacherToken}}
+
+### 14. הוספת תלמיד (רמה 0, ניקוד 0, סטטוס "student" - אוטומטי)  → 201
+# בפעם השנייה יחזור 409 כי הת"ז כבר קיימת
+# @name newStudent
+POST {{baseUrl}}/students
+Authorization: Bearer {{teacherToken}}
+Content-Type: application/json
+
+{
+  "idNumber": "300000031",
+  "name": "דינה לוי",
+  "age": 8,
+  "institution": "{{institutions.response.body.$[0]._id}}"
+}
+
+### 15. עריכת התלמיד שנוסף בבקשה 14  → 200
+PUT {{baseUrl}}/students/{{newStudent.response.body._id}}
+Authorization: Bearer {{teacherToken}}
+Content-Type: application/json
+
+{
+  "name": "דינה כהן",
+  "age": 9
+}
+
+### 16. תלמיד אחד לפי id  → 200
+GET {{baseUrl}}/students/{{newStudent.response.body._id}}
+Authorization: Bearer {{teacherToken}}
+
+### 17. מחיקת התלמיד שנוסף בבקשה 14  → 200
+DELETE {{baseUrl}}/students/{{newStudent.response.body._id}}
+Authorization: Bearer {{teacherToken}}
+
+
+###############################################################################
+# משחקים (תלמידה)
+###############################################################################
+
+### 18. המשחקים של התלמידה (רק עד הרמה שלה)  → 200 [ ... ]
+# לכל משחק מצורף exercisesCount - מספר התרגילים לפי הגיל
+# @name games
+GET {{baseUrl}}/games
+Authorization: Bearer {{studentToken}}
+
+### 19. כל המשחקים (מורה רואה את כולם)  → 200 [ ... ]
+GET {{baseUrl}}/games
+Authorization: Bearer {{teacherToken}}
+
+### 20. התחלת משחק - מקבלים תרגילים (בלי תשובות)  → 200 { game, exercises }
+GET {{baseUrl}}/games/{{games.response.body.$[0]._id}}/play
+Authorization: Bearer {{studentToken}}
+
+### 21. סיום משחק - השרת בודק ומעדכן ניקוד  → 200 { correctCount, pointsEarned, score, level, levelUp, results }
+# המשחק הראשון של מיכל: "חיבור עד 10" - מספרים 0-5, ולגיל 7 יש 5 תרגילים
+# התשובה האחרונה שגויה בכוונה → 4 נכונות, 40 נקודות
+POST {{baseUrl}}/games/{{games.response.body.$[0]._id}}/finish
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "answers": [
+    { "a": 2, "b": 3, "answer": 5 },
+    { "a": 1, "b": 4, "answer": 5 },
+    { "a": 5, "b": 5, "answer": 10 },
+    { "a": 0, "b": 3, "answer": 3 },
+    { "a": 4, "b": 2, "answer": 7 }
+  ]
+}
+
+
+###############################################################################
+# שגיאות - כדאי לראות שהן חוזרות נכון
+###############################################################################
+
+### 22. בלי טוקן  → 401 "יש להתחבר למערכת"
+GET {{baseUrl}}/students
+
+### 23. תלמידה מנסה לראות תלמידים  → 403 "אין לך הרשאה לפעולה זו"
+GET {{baseUrl}}/students
+Authorization: Bearer {{studentToken}}
+
+### 24. מורה בלי סיסמה  → 400 "מורה חייבת להזין סיסמה"
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "name": "רחל לוי",
+  "idNumber": "100000009"
+}
+
+### 25. סיסמה שגויה  → 401 "סיסמה שגויה"
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "name": "רחל לוי",
+  "idNumber": "100000009",
+  "password": "0000"
+}
+
+### 26. שם לא תואם לת"ז  → 401 "שם או תעודת זהות שגויים"
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "name": "מיכל",
+  "idNumber": "300000007"
+}
+
+### 27. הרשמה עם סיסמת מערכת שגויה  → 403
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "idNumber": "200000016",
+  "name": "לאה",
+  "age": 40,
+  "password": "lea123",
+  "systemCode": "wrong"
+}
+
+### 28. ולידציה - שדות לא תקינים  → 400 עם הודעה לכל שדה ב-errors
+POST {{baseUrl}}/students
+Authorization: Bearer {{teacherToken}}
+Content-Type: application/json
+
+{
+  "idNumber": "123456789",
+  "name": "א",
+  "age": 40
+}
+
+### 29. סיום משחק עם מספר תשובות לא נכון  → 400 "יש לשלוח 5 תשובות"
+POST {{baseUrl}}/games/{{games.response.body.$[0]._id}}/finish
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "answers": [{ "a": 1, "b": 1, "answer": 2 }]
+}
+
+### 30. נתיב שלא קיים  → 404
+GET {{baseUrl}}/nothing-here
