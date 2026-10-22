@@ -1,6 +1,8 @@
-# שרת - מערכת הגשת עבודות
+# שרת - משחקי חשבון לתלמידים
 
 Node.js + Express + MongoDB (Mongoose), התחברות עם JWT.
+
+מורה נרשמת, מוסיפה מוסדות לימוד ותלמידים. תלמיד נכנס, משחק במשחקי חשבון המתאימים לרמה ולגיל שלו, ובסיום המשחק הניקוד והרמה שלו מתעדכנים.
 
 ## הרצה מקומית
 
@@ -11,128 +13,127 @@ npm run seed              # נתוני דוגמה (מוחק את הקיים!)
 npm run dev               # http://localhost:5000
 ```
 
-### משתמשי דוגמה (סיסמה לכולם: `1234`)
+### משתמשי דוגמה (כניסה עם שם + ת"ז)
 
-| תפקיד | שם | ת"ז | פרטים |
+| סטטוס | שם | ת"ז | פרטים |
 |---|---|---|---|
-| מנהל | מנהלת המערכת | 000000018 | |
-| מורה | רחל לוי | 100000009 | מתמטיקה |
-| מורה | שרה כהן | 200000008 | אנגלית |
-| תלמידה | מיכל אברהם | 300000007 | כיתה ח1 |
-| תלמידה | נועה ישראלי | 300000015 | כיתה ח1 |
-| תלמידה | אסתר דוד | 300000023 | כיתה ח2 |
+| מורה | רחל לוי | 100000009 | גיל 35 |
+| תלמיד | מיכל אברהם | 300000007 | גיל 7, בית יעקב, רמה 0 |
+| תלמיד | נועה ישראלי | 300000015 | גיל 9, בית יעקב, רמה 1 |
+| תלמיד | יוסי דוד | 300000023 | גיל 11, תלמוד תורה, רמה 2 |
+
+סיסמת המערכת להרשמת מורה: הערך של `TEACHER_CODE` ב-`.env` (בדוגמה: `1234`).
 
 ---
 
 ## מבנה מסד הנתונים
 
-**User - משתמש**
+**Teacher - מורה**
 | שדה | סוג | הערות |
 |---|---|---|
-| name | String | חובה |
 | idNumber | String | חובה, ייחודי, נבדקת ספרת ביקורת של ת"ז |
-| password | String | נשמרת מוצפנת (bcrypt), לא חוזרת אף פעם ללקוח |
-| role | `admin` / `teacher` / `student` | |
-| classroom | String | לתלמידה |
-| subject | String | למורה |
+| name | String | חובה |
+| age | Number | חובה, 18-120 |
+| status | `"teacher"` | אוטומטי |
+| institutions, students | רשימות | לא נשמרות במורה - נשלפות מהמוסדות/תלמידים שמצביעים עליה |
 
-**Assignment - מטלה** (נוצרת ע"י מורה)
+**Student - תלמיד**
+| שדה | סוג | הערות |
+|---|---|---|
+| idNumber | String | חובה, ייחודי, ת"ז תקינה |
+| name | String | חובה |
+| age | Number | חובה, 4-18 |
+| institution | הפניה ל-Institution | חובה, מוסד של המורה |
+| teacher | הפניה ל-Teacher | המורה שהוסיפה אותו |
+| level | Number | מתחיל ב-0 |
+| score | Number | מתחיל ב-0 |
+| status | `"student"` | אוטומטי |
+
+**Institution - מוסד לימודים**: `name`, `teacher` (לאותה מורה אין שני מוסדות באותו שם).
+
+**Game - משחק**
 | שדה | סוג |
 |---|---|
-| title | String, חובה |
-| description | String |
-| subject | String, חובה (מקצוע) |
-| classroom | String, חובה (לאיזו כיתה) |
-| dueDate | Date, חובה |
-| isPublic | Boolean - מטלה ציבורית שכל התלמידות רואות |
-| teacher | הפניה ל-User |
+| name | String |
+| level | Number - מאיזו רמה המשחק פתוח |
+| operation | `addition` (חיבור) / `multiplication` (כפל) |
+| startNumber | Number - המספר הקטן בתרגילים |
+| endNumber | Number - המספר הגדול בתרגילים |
 
-**Submission - עבודה מוגשת** (האובייקט המרכזי)
-| שדה | סוג |
-|---|---|
-| assignment | הפניה ל-Assignment |
-| student | הפניה ל-User |
-| title | String, חובה |
-| content | String, חובה |
-| link | String - קישור לקובץ, חייב להתחיל ב-http |
-| status | `submitted` (הוגשה) / `graded` (נבדקה) / `returned` (הוחזרה לתיקון) |
-| grade | Number 0-100 |
-| feedback | String - משוב המורה |
-| submittedAt | Date |
+## חוקי המשחק (`src/utils/gameLogic.js`)
 
-תלמידה יכולה להגיש עבודה אחת לכל מטלה.
+- **סוג המשחק לפי רמה**: תלמיד רואה רק משחקים שהרמה שלהם קטנה או שווה לרמה שלו.
+- **מספר התרגילים לפי גיל**: עד גיל 7 - 5 תרגילים, 8-10 - 8 תרגילים, 11 ומעלה - 10 תרגילים.
+- **ניקוד**: 10 נקודות לכל תשובה נכונה.
+- **רמה**: כל 100 נקודות = רמה אחת (100 נקודות → רמה 1, 200 → רמה 2...).
 
 ## הרשאות
 
-| | מנהל | מורה | תלמידה |
-|---|---|---|---|
-| מטלות - צפייה | הכל | שיצרה | של הכיתה שלה + ציבוריות |
-| מטלות - הוספה/עריכה/מחיקה | ✓ | רק שלה | ✗ |
-| עבודות - צפייה | הכל | שהוגשו על המטלות שלה | שלה בלבד |
-| עבודות - הגשה/עריכה | ✗ | ✗ | שלה, כל עוד לא נבדקה |
-| עבודות - בדיקה וציון | ✓ | על המטלות שלה | ✗ |
-| משתמשים - צפייה | הכל | תלמידות בלבד | ✗ |
-| משתמשים - הוספה/עריכה/מחיקה | ✓ | ✗ | ✗ |
+| | מורה | תלמיד |
+|---|---|---|
+| הרשמה | ✓ (עם סיסמת המערכת) | ✗ - המורה מוסיפה אותו |
+| מוסדות - צפייה והוספה | שלה בלבד | ✗ |
+| תלמידים - צפייה, חיפוש, הוספה, עריכה | שלה בלבד | ✗ |
+| משחקים - צפייה | כולם | רק עד הרמה שלו |
+| משחק וסיום משחק | ✗ | ✓ |
 
 ## איך עובדת ההתחברות
 
-1. הקליינט שולח `POST /api/auth/login` עם ת"ז וסיסמה.
-2. השרת מוצא את המשתמש, משווה את הסיסמה למוצפנת (bcrypt), ומחזיר **token** (JWT) ואת פרטי המשתמש.
-3. הקליינט שומר את הטוקן (למשל ב-localStorage) ושולח אותו בכל בקשה בכותרת:
-   `Authorization: Bearer <token>`
-4. ה-middleware `authenticate` מאמת את הטוקן ושם את המשתמש ב-`req.user`;
-   `authorize('admin', 'teacher')` בודק את התפקיד. בנוסף, כל ראוט מסנן את הנתונים לפי התפקיד (טבלת ההרשאות למעלה).
-5. אחרי רענון דף הקליינט קורא ל-`GET /api/auth/me` כדי לדעת מי מחובר.
+1. **הרשמה (מורה בלבד)**: `POST /api/auth/register` עם ת"ז, שם, גיל וסיסמת המערכת. השרת בודק שהסיסמה שווה ל-`TEACHER_CODE` - כך רק מי שקיבלה את הסיסמה יכולה להירשם כמורה.
+2. **כניסה**: `POST /api/auth/login` עם שם ות"ז. השרת מחפש את ת"ז אצל המורים ואצל התלמידים, בודק שהשם תואם, ומחזיר **token** (JWT) ואת פרטי המשתמש. לפי `user.status` הקליינט יודע אם להציג אזור מורה או תלמיד.
+3. הקליינט שומר את הטוקן ושולח אותו בכל בקשה בכותרת `Authorization: Bearer <token>`.
+4. ה-middleware `authenticate` מאמת את הטוקן ושם את המשתמש ב-`req.user`; `authorize('teacher')` בודק את הסטטוס.
+5. אחרי רענון דף - `GET /api/auth/me` מחזיר את המשתמש המחובר (עם רמה וניקוד עדכניים).
 
 ## API
 
-כל הנתיבים (חוץ מ-login/register) דורשים טוקן.
+כל הנתיבים (חוץ מ-register/login) דורשים טוקן.
 שגיאות חוזרות תמיד בפורמט `{ "message": "...", "errors": { "שדה": "הודעה" } }`
-(`errors` מופיע בשגיאות ולידציה - נוח להצגה ליד כל שדה בטופס).
+(`errors` מופיע כשיש שגיאה בשדה מסוים - נוח להצגה ליד השדה בטופס).
 
-קודי סטטוס: `400` נתונים לא תקינים, `401` לא מחובר, `403` אין הרשאה, `404` לא נמצא, `409` כפילות.
+קודי סטטוס: `400` נתונים לא תקינים, `401` לא מחובר / פרטים שגויים, `403` אין הרשאה, `404` לא נמצא, `409` כפילות.
 
-### Auth
+### Auth - `/api/auth`
 | Method | נתיב | שולחים | מקבלים |
 |---|---|---|---|
-| POST | `/api/auth/login` | `{ idNumber, password, role? }` | `{ token, user }` |
-| POST | `/api/auth/register` | `{ name, idNumber, password, classroom }` | `{ token, user }` (נרשמת כתלמידה) |
-| GET | `/api/auth/me` | - | `{ user }` |
+| POST | `/register` | `{ idNumber, name, age, password }` | `{ token, user }` |
+| POST | `/login` | `{ name, idNumber }` | `{ token, user }` |
+| GET | `/me` | - | `{ user }` |
 
-`role` בהתחברות אופציונלי - אם מסך הכניסה הוא "כניסת מורה", שולחים `role: "teacher"` והשרת יחזיר 403 אם המשתמש אינו מורה.
-
-### מטלות - `/api/assignments`
+### מוסדות - `/api/institutions` (מורה)
 | Method | נתיב | שולחים | מקבלים |
 |---|---|---|---|
-| GET | `/` | query: `search`, `subject`, `classroom`, `sort` | מערך מטלות |
-| GET | `/subjects` | - | מערך מקצועות (לשדה סינון) |
-| GET | `/:id` | - | מטלה |
-| POST | `/` | `{ title, description, subject, classroom, dueDate, isPublic }` | המטלה שנוצרה |
-| PUT | `/:id` | אותם שדות (חלקי) | המטלה המעודכנת |
-| DELETE | `/:id` | - | `{ message, id }` (מוחק גם את העבודות שהוגשו עליה) |
+| GET | `/` | - | מערך מוסדות של המורה |
+| POST | `/` | `{ name }` | המוסד שנוסף |
+| DELETE | `/:id` | - | `{ message, id }` (רק אם אין בו תלמידים) |
 
-`sort`: `dueDate`, `title`, `createdAt`, `subject`, עם מינוס למיון יורד (`-dueDate`).
-
-### עבודות - `/api/submissions`
+### תלמידים - `/api/students` (מורה)
 | Method | נתיב | שולחים | מקבלים |
 |---|---|---|---|
-| GET | `/` | query: `status`, `assignment`, `search`, `sort` | מערך עבודות (עם פרטי מטלה ותלמידה) |
-| GET | `/:id` | - | עבודה |
-| POST | `/` | `{ assignment, title, content, link? }` | העבודה שנוצרה |
-| PUT | `/:id` | `{ title, content, link }` | העבודה (חוזרת לסטטוס "הוגשה") |
-| PATCH | `/:id/grade` | `{ grade, feedback, status: "graded" \| "returned" }` | העבודה |
+| GET | `/` | query: `institution` (id), `name`, `level`, `sort` | מערך תלמידים, עם `institution: { _id, name }` |
+| GET | `/:id` | - | תלמיד |
+| POST | `/` | `{ idNumber, name, age, institution }` | התלמיד (רמה 0, ניקוד 0) |
+| PUT | `/:id` | אותם שדות | התלמיד המעודכן |
 | DELETE | `/:id` | - | `{ message, id }` |
 
-`sort`: `submittedAt`, `grade`, `title`, `status`.
+`sort`: `name`, `age`, `level`, `score`, עם מינוס למיון יורד (`-score`).
 
-### משתמשים - `/api/users`
+### משחקים - `/api/games`
 | Method | נתיב | שולחים | מקבלים |
 |---|---|---|---|
-| GET | `/` | query: `role`, `classroom`, `search`, `sort` | מערך משתמשים |
-| GET | `/classrooms` | - | מערך כיתות (לשדה בחירה) |
-| POST | `/` | `{ name, idNumber, password, role, classroom?, subject? }` | המשתמש |
-| PUT | `/:id` | אותם שדות (סיסמה רק אם רוצים לשנות) | המשתמש |
-| DELETE | `/:id` | - | `{ message, id }` |
+| GET | `/` | - | מערך משחקים, לכל אחד `exercisesCount` (לתלמיד) |
+| GET | `/:id/play` | - (תלמיד) | `{ game, exercises: [{ a, b, operator }] }` |
+| POST | `/:id/finish` | `{ answers: [{ a, b, answer }] }` (תלמיד) | ראו למטה |
+
+תשובת סיום משחק:
+```json
+{
+  "correctCount": 4, "total": 5, "pointsEarned": 40,
+  "score": 140, "level": 1, "levelUp": true,
+  "results": [{ "a": 4, "b": 2, "answer": 6, "correctAnswer": 6, "isCorrect": true }]
+}
+```
+השרת בודק בעצמו כל תשובה - הקליינט לא שולח ניקוד, כך שאי אפשר "לרמות".
 
 ---
 
@@ -143,12 +144,12 @@ npm run dev               # http://localhost:5000
 2. Database Access: ליצור משתמש וסיסמה.
 3. Network Access: להוסיף `0.0.0.0/0` (כדי ש-Render יוכל להתחבר).
 4. Connect → Drivers: להעתיק את ה-connection string ולהוסיף שם DB, למשל
-   `mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/assignments`
+   `mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/math-games`
 
 ### שרת - Render
 1. New → **Web Service**, לחבר את ריפו הגיט.
 2. Root Directory: `server` · Build: `npm install` · Start: `npm start`
-3. Environment Variables: `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL` (כתובת הקליינט ב-Render).
+3. Environment Variables: `MONGO_URI`, `JWT_SECRET`, `TEACHER_CODE`, `CLIENT_URL` (כתובת הקליינט ב-Render).
 4. למילוי נתוני דוגמה: להריץ מקומית `npm run seed` כש-`MONGO_URI` ב-.env מצביע ל-Atlas.
 
 בקליינט - כתובת השרת במשתנה סביבה, למשל `VITE_API_URL=https://your-server.onrender.com/api`.

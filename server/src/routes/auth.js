@@ -1,40 +1,42 @@
 import { Router } from 'express';
-import User from '../models/User.js';
+import Teacher from '../models/Teacher.js';
+import Student from '../models/Student.js';
 import HttpError from '../utils/HttpError.js';
 import { pick } from '../utils/query.js';
 import { authenticate, signToken } from '../middleware/auth.js';
 
 const router = Router();
 
-const ROLE_LABELS = { admin: 'מנהל', teacher: 'מורה', student: 'תלמידה' };
-
-// POST /api/auth/register - הרשמה עצמית של תלמידה
+// POST /api/auth/register - הרשמת מורה (תלמידים מתווספים ע"י המורה)
+// password = סיסמת המערכת (TEACHER_CODE ב-.env), כדי שרק מורות יוכלו להירשם
 router.post('/register', async (req, res) => {
-  const data = pick(req.body, ['name', 'idNumber', 'password', 'classroom']);
-  if (!data.classroom) throw new HttpError(400, 'יש לבחור כיתה');
-  const user = await User.create({ ...data, role: 'student' });
-  res.status(201).json({ token: signToken(user), user });
+  if (!req.body?.password || req.body.password !== process.env.TEACHER_CODE) {
+    throw new HttpError(403, 'סיסמת המערכת שגויה', { password: 'סיסמת המערכת שגויה' });
+  }
+  const data = pick(req.body, ['name', 'idNumber', 'age']);
+  if (data.idNumber && (await Student.exists({ idNumber: String(data.idNumber).trim() }))) {
+    throw new HttpError(409, 'קיים כבר משתמש עם תעודת זהות זו', { idNumber: 'קיים כבר משתמש עם תעודת זהות זו' });
+  }
+  const teacher = await Teacher.create(data);
+  res.status(201).json({ token: signToken(teacher), user: teacher });
 });
 
-// POST /api/auth/login - התחברות עם ת"ז וסיסמה
-// role אופציונלי: אם נשלח (מסך כניסת מורה / מנהל / תלמידה) בודקים שהמשתמש באמת בתפקיד הזה
+// POST /api/auth/login - כניסה עם שם ותעודת זהות (למורה ולתלמיד)
+// השרת מחפש את ת"ז אצל המורים ואצל התלמידים ובודק שהשם תואם
 router.post('/login', async (req, res) => {
-  const { idNumber, password, role } = req.body || {};
-  if (!idNumber || !password) throw new HttpError(400, 'יש להזין תעודת זהות וסיסמה');
+  const name = String(req.body?.name ?? '').trim();
+  const idNumber = String(req.body?.idNumber ?? '').trim();
+  if (!name || !idNumber) throw new HttpError(400, 'יש להזין שם ותעודת זהות');
 
-  const user = await User.findOne({ idNumber: String(idNumber).trim() }).select('+password');
-  if (!user || !(await user.comparePassword(String(password)))) {
-    throw new HttpError(401, 'תעודת זהות או סיסמה שגויים');
-  }
-  if (role && role !== user.role) {
-    throw new HttpError(403, `למשתמש זה אין הרשאת כניסה כ${ROLE_LABELS[role] || role}`);
-  }
+  const user = (await Teacher.findOne({ idNumber })) || (await Student.findOne({ idNumber }).populate('institution', 'name'));
+  if (!user || user.name !== name) throw new HttpError(401, 'שם או תעודת זהות שגויים');
 
   res.json({ token: signToken(user), user });
 });
 
-// GET /api/auth/me - מי המשתמש המחובר (לשחזור התחברות אחרי רענון דף)
-router.get('/me', authenticate, (req, res) => {
+// GET /api/auth/me - מי המשתמש המחובר (לשחזור התחברות אחרי רענון, ולרמה/ניקוד עדכניים של תלמיד)
+router.get('/me', authenticate, async (req, res) => {
+  if (req.user.status === 'student') await req.user.populate('institution', 'name');
   res.json({ user: req.user });
 });
 

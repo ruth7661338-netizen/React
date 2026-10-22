@@ -1,13 +1,16 @@
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import Teacher from '../models/Teacher.js';
+import Student from '../models/Student.js';
 import HttpError from '../utils/HttpError.js';
 
+const MODELS = { teacher: Teacher, student: Student };
+
 export function signToken(user) {
-  return jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ id: user._id, role: user.status }, process.env.JWT_SECRET, { expiresIn: '7d' });
 }
 
 // בודק שנשלח טוקן תקין בכותרת Authorization: Bearer <token>
-// ושם את המשתמש המחובר ב-req.user
+// ושם את המשתמש המחובר ב-req.user (מורה או תלמיד)
 export async function authenticate(req, _res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -20,16 +23,17 @@ export async function authenticate(req, _res, next) {
     throw new HttpError(401, 'החיבור פג תוקף, יש להתחבר מחדש');
   }
 
-  const user = await User.findById(payload.id);
+  const Model = MODELS[payload.role];
+  const user = Model && (await Model.findById(payload.id));
   if (!user) throw new HttpError(401, 'המשתמש לא קיים');
   req.user = user;
   next();
 }
 
-// מאפשר גישה רק לתפקידים שהועברו, לדוגמה: authorize('admin', 'teacher')
-export function authorize(...roles) {
+// מאפשר גישה רק לסטטוסים שהועברו, לדוגמה: authorize('teacher')
+export function authorize(...statuses) {
   return (req, _res, next) => {
-    if (!roles.includes(req.user.role)) throw new HttpError(403, 'אין לך הרשאה לפעולה זו');
+    if (!statuses.includes(req.user.status)) throw new HttpError(403, 'אין לך הרשאה לפעולה זו');
     next();
   };
 }

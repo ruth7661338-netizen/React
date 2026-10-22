@@ -2,10 +2,10 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import app from './app.js';
 
-const { MONGO_URI, JWT_SECRET, PORT = 5000 } = process.env;
+const { MONGO_URI, JWT_SECRET, TEACHER_CODE, PORT = 5000 } = process.env;
 
-if (!MONGO_URI || !JWT_SECRET) {
-  console.error('חסרים משתני סביבה MONGO_URI / JWT_SECRET (ראו .env.example)');
+if (!MONGO_URI || !JWT_SECRET || !TEACHER_CODE) {
+  console.error('חסרים משתני סביבה MONGO_URI / JWT_SECRET / TEACHER_CODE (ראו .env.example)');
   process.exit(1);
 }
 

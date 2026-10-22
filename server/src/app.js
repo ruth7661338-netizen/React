@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth.js';
-import userRoutes from './routes/users.js';
-import assignmentRoutes from './routes/assignments.js';
-import submissionRoutes from './routes/submissions.js';
+import institutionRoutes from './routes/institutions.js';
+import studentRoutes from './routes/students.js';
+import gameRoutes from './routes/games.js';
 import { authenticate } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
@@ -15,11 +15,11 @@ app.use(express.json());
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-// התחברות פתוחה לכולם, כל השאר דורש טוקן
+// הרשמה וכניסה פתוחות לכולם, כל השאר דורש טוקן
 app.use('/api/auth', authRoutes);
-app.use('/api/users', authenticate, userRoutes);
-app.use('/api/assignments', authenticate, assignmentRoutes);
-app.use('/api/submissions', authenticate, submissionRoutes);
+app.use('/api/institutions', authenticate, institutionRoutes);
+app.use('/api/students', authenticate, studentRoutes);
+app.use('/api/games', authenticate, gameRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
