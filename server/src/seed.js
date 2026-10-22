@@ -10,7 +10,8 @@ import Game from './models/Game.js';
 await mongoose.connect(process.env.MONGO_URI);
 await Promise.all([Teacher.deleteMany({}), Student.deleteMany({}), Institution.deleteMany({}), Game.deleteMany({})]);
 
-const teacher = await Teacher.create({ name: 'רחל לוי', idNumber: '100000009', age: 35 });
+// Teacher.create ולא insertMany - כדי שהסיסמה תוצפן ב-pre('save')
+const teacher = await Teacher.create({ name: 'רחל לוי', idNumber: '100000009', age: 35, password: '1234' });
 
 const [school1, school2] = await Institution.create([
   { name: 'בית יעקב', teacher: teacher._id },
