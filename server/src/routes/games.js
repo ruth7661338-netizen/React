@@ -4,7 +4,7 @@ import HttpError from '../utils/HttpError.js';
 import { authorize } from '../middleware/auth.js';
 import {
   POINTS_PER_CORRECT_ANSWER,
-  exercisesCountForAge,
+  exercisesCountForGame,
   generateExercises,
   calculate,
   levelForScore,
@@ -26,15 +26,18 @@ async function findVisibleGame(req) {
 // GET /api/games - המשחקים המתאימים לתלמיד
 // לכל משחק מצורף exercisesCount - מספר התרגילים לפי גיל התלמיד
 router.get('/', async (req, res) => {
-  const games = await Game.find(visibleGamesFilter(req.user)).sort({ level: 1, name: 1 });
-  const count = req.user.status === 'student' ? exercisesCountForAge(req.user.age) : null;
-  res.json(games.map((g) => ({ ...g.toJSON(), exercisesCount: count })));
+  const games = await Game.find({}).sort({ level: 1, name: 1 });
+  res.json(games.map((g) => ({
+    ...g.toJSON(),
+    exercisesCount: req.user.status === 'student' ? exercisesCountForGame(req.user.age, g) : null,
+    locked: req.user.status === 'student' && g.level > req.user.level,
+  })));
 });
 
 // GET /api/games/:id/play - התחלת משחק: פרטי המשחק + רשימת תרגילים (בלי התשובות)
 router.get('/:id/play', authorize('student'), async (req, res) => {
   const game = await findVisibleGame(req);
-  const exercises = generateExercises(game, exercisesCountForAge(req.user.age));
+  const exercises = generateExercises(game, exercisesCountForGame(req.user.age, game));
   res.json({ game, exercises });
 });
 
@@ -45,7 +48,7 @@ router.post('/:id/finish', authorize('student'), async (req, res) => {
   const game = await findVisibleGame(req);
   const student = req.user;
   const answers = req.body?.answers;
-  const expected = exercisesCountForAge(student.age);
+  const expected = exercisesCountForGame(student.age, game);
 
   if (!Array.isArray(answers) || answers.length !== expected) {
     throw new HttpError(400, `יש לשלוח ${expected} תשובות`);

@@ -10,19 +10,36 @@ export function exercisesCountForAge(age) {
   return 10;
 }
 
+export function exercisesCountForGame(age, game) {
+  const valuesCount = game.endNumber - game.startNumber + 1;
+  const uniquePairCount = (valuesCount * (valuesCount + 1)) / 2;
+  return Math.min(exercisesCountForAge(age), uniquePairCount);
+}
+
 export function calculate(operation, a, b) {
   return operation === 'multiplication' ? a * b : a + b;
 }
 
-const randomBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-// יוצר תרגילים אקראיים בטווח המספרים של המשחק
+// שולף צמדי מספרים אקראיים ללא חזרה בתוך אותו משחק
 export function generateExercises(game, count) {
-  return Array.from({ length: count }, () => ({
-    a: randomBetween(game.startNumber, game.endNumber),
-    b: randomBetween(game.startNumber, game.endNumber),
-    operator: game.operation === 'multiplication' ? '×' : '+',
-  }));
+  const exercises = [];
+  for (let a = game.startNumber; a <= game.endNumber; a += 1) {
+    for (let b = a; b <= game.endNumber; b += 1) {
+      exercises.push({
+        a,
+        b,
+        operator: game.operation === 'multiplication' ? '×' : '+',
+      });
+    }
+  }
+
+  const selectedCount = Math.min(count, exercises.length);
+  for (let index = 0; index < selectedCount; index += 1) {
+    const randomIndex = index + Math.floor(Math.random() * (exercises.length - index));
+    [exercises[index], exercises[randomIndex]] = [exercises[randomIndex], exercises[index]];
+  }
+
+  return exercises.slice(0, selectedCount);
 }
 
 // הרמה נגזרת מהניקוד: כל 100 נקודות = רמה אחת

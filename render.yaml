@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: math-games-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TEACHER_CODE
+        sync: false
+      - key: CLIENT_URL
+        sync: false
